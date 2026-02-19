@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.jpg
+# Environments
+venv/
+env/
+.env
+*.tex
+# IDEs
+.vscode/
+.idea/
+
+# Logs and Output
+logs/
+runs/
+failed_individuals/
+checkpoints/
+
+# Data (Ignore dataset files but keep source code)
+data/*
+!data/*.py
+
+# Models and checkpoints
+*.pth
+*.pkl
+*.tfevents.*
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+/test/*/
+*.txt
+/src/apply/experiment_results
+/src/apply/ntk_experiment_results
+.vs
+/LoNAS
