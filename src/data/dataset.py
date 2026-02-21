@@ -37,7 +37,7 @@ class Cutout:
     
 class DatasetLoader:
     def __init__(self):
-        self.root = './data'
+        self.root = config.DATA_ROOT
         if os.path.exists(os.path.join(self.root, 'cifar-10-batches-py')):
             self.cifar10_download = False
         else: 

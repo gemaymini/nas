@@ -72,6 +72,7 @@ class Config:
         self.NTK_FAIL_SCORE = 5000
         self.K_FAIL_SCORE = 5000
         
+        self.DATA_ROOT = './data'
         self.LOG_DIR = './logs'
         self.LOG_LEVEL = 'INFO'
         self.CHECKPOINT_DIR = './checkpoints'
