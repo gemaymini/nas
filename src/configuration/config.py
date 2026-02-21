@@ -73,6 +73,7 @@ class Config:
         self.NTK_FAIL_SCORE = 5000
         self.K_FAIL_SCORE = 5000
         
+        self.DATA_ROOT = './data'  # 数据集存放路径，服务器上可改为共享路径，如 '/shared/datasets'
         self.LOG_DIR = './logs'
         self.LOG_LEVEL = 'INFO'
         self.CHECKPOINT_DIR = './checkpoints'
