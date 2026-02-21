@@ -98,6 +98,9 @@ class NetworkTrainer:
         
         try:
             for epoch in range(1, epochs + 1):
+                if full_train:
+                    drop_prob = config.DROP_PATH_MAX * epoch / epochs
+                    model.update_drop_path_prob(drop_prob)
                 train_loss, train_acc = self.train_one_epoch(model, trainloader, criterion, optimizer, epoch, epochs, auxiliary_weight)
                 test_loss, test_acc = self.evaluate(model, testloader, criterion)
                 scheduler.step()

@@ -81,6 +81,19 @@ class FactorizedReduce(nn.Module):
         
         return out
     
+class DropPath(nn.Module):
+    """Scheduled DropPath (Stochastic Depth): drops entire sample paths during training."""
+    def __init__(self):
+        super().__init__()
+        self.drop_prob = 0.0
+
+    def forward(self, x):
+        if not self.training or self.drop_prob <= 0.0:
+            return x
+        keep_prob = 1 - self.drop_prob
+        mask = torch.zeros(x.shape[0], 1, 1, 1, device=x.device, dtype=x.dtype).bernoulli_(keep_prob)
+        return x * mask / keep_prob
+
 def get_op(op_name: str, C: int, stride: int, affine: bool = True) -> nn.Module:
     OPS = {
         'zero': lambda C, stride, affine: Zero(stride),

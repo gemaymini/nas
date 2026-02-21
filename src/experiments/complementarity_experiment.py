@@ -103,8 +103,7 @@ def count_ops(individual):
 def evaluate_individual(evaluator, individual):
     """评估一个个体的NTK和K score"""
     try:
-        network = Network(individual.normal_cell, individual.reduction_cell,
-                         eval_ntk=True, enable_dropout=False)
+        network = Network(individual.normal_cell, individual.reduction_cell)
         param_count = network.get_param_count()
         
         ntk_score = evaluator.compute_ntk_score(network)

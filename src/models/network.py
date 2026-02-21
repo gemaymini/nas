@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from configuration.config import config
 from core.encoding import CellEncoding
-from models.operator import get_op, FactorizedReduce, ReLUConvBN
+from models.operator import get_op, FactorizedReduce, ReLUConvBN, DropPath
 
 class Cell(nn.Module):
     def __init__(self, cell_encoding: CellEncoding, C_prev_prev: int, C_prev: int, C: int, reduction: bool, reduction_prev: bool):
@@ -16,6 +16,7 @@ class Cell(nn.Module):
         self.preprocess1 = ReLUConvBN(C_prev, C, 1, 1, 0)
         
         self._ops = nn.ModuleList()
+        self._drop_paths = nn.ModuleList()
         self._edge_indices = []
         stride = 2 if reduction else 1
         for node_idx, node_edges in enumerate(cell_encoding.edges):
@@ -27,6 +28,7 @@ class Cell(nn.Module):
                     op_stride = 1
                 op = get_op(op_name, C, op_stride)
                 self._ops.append(op)
+                self._drop_paths.append(DropPath())
                 self._edge_indices.append((node_idx, edge_idx, edge.source))
         self.out_channels = self.num_nodes * C
         self.cell_encoding = cell_encoding
@@ -45,6 +47,7 @@ class Cell(nn.Module):
                 _, _, source = self._edge_indices[op_idx] 
                 h = states[source]
                 h = self._ops[op_idx](h)
+                h = self._drop_paths[op_idx](h)
                 node_inputs.append(h)
                 op_idx += 1
             
@@ -75,11 +78,10 @@ class AuxiliaryHeadCIFAR(nn.Module):
         return x
 
 class Network(nn.Module):
-    def __init__(self, normal_cell: CellEncoding, reduction_cell: CellEncoding, eval_ntk: bool = False, enable_dropout: bool = True, auxiliary: bool = False):
+    def __init__(self, normal_cell: CellEncoding, reduction_cell: CellEncoding, auxiliary: bool = False):
         super().__init__()
         self.num_classes = config.NUM_CLASSES
         self.init_channels = config.INIT_CHANNELS
-        self.enable_dropout = enable_dropout
         self.auxiliary = auxiliary
         self.cells_per_stage = config.CELLS_PER_STAGE
         self.num_stages = config.NUM_STAGES
@@ -124,7 +126,6 @@ class Network(nn.Module):
                 cell_idx += 1
                 
         self.global_pool = nn.AdaptiveAvgPool2d(1)
-        self.dropout = nn.Dropout(0.2)
         self.classifier = nn.Linear(C_prev, self.num_classes)
         
         self.normal_cell_encoding = normal_cell
@@ -141,8 +142,6 @@ class Network(nn.Module):
             
         out = self.global_pool(s1)
         out = out.view(out.size(0), -1)
-        if self.enable_dropout:
-            out = self.dropout(out)
         out = self.classifier(out)
 
         if self.auxiliary and self.training:
@@ -152,4 +151,9 @@ class Network(nn.Module):
     
     def get_param_count(self) -> int:
         return sum(p.numel() for p in self.parameters())
-                
+    
+    def update_drop_path_prob(self, drop_prob: float):
+        """Update drop path probability for all DropPath layers in the network."""
+        for cell in self.cells:
+            for dp in cell._drop_paths:
+                dp.drop_prob = drop_prob
