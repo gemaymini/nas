@@ -168,7 +168,7 @@ class NTKEvaluator:
     def evaluate_individual(self, individual: Individual) -> Individual:
         try:
             network = Network(individual.normal_cell, individual.reduction_cell, 
-                            eval_ntk=True, enable_dropout=False)
+                            enable_dropout=False)
             individual.param_count = network.get_param_count()
             
             ntk_score = self.compute_ntk_score(network)

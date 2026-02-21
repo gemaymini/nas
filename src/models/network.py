@@ -75,7 +75,7 @@ class AuxiliaryHeadCIFAR(nn.Module):
         return x
 
 class Network(nn.Module):
-    def __init__(self, normal_cell: CellEncoding, reduction_cell: CellEncoding, eval_ntk: bool = False, enable_dropout: bool = True, auxiliary: bool = False):
+    def __init__(self, normal_cell: CellEncoding, reduction_cell: CellEncoding, enable_dropout: bool = True, auxiliary: bool = False):
         super().__init__()
         self.num_classes = config.NUM_CLASSES
         self.init_channels = config.INIT_CHANNELS
