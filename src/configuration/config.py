@@ -19,10 +19,10 @@ class Config:
             
         elif self.MODE == 'PRO':
             self.POPULATION_SIZE = 100
-            self.MAX_GEN = 30
+            self.MAX_GEN = 50
             
-            self.HISTORY_TOP_N1 = 20
-            self.SHORT_TRAIN_EPOCHS = 12
+            self.HISTORY_TOP_N1 = 10
+            self.SHORT_TRAIN_EPOCHS = 30
             self.HISTORY_TOP_N2 = 3
             self.FULL_TRAIN_EPOCHS = 600
             
@@ -70,7 +70,7 @@ class Config:
         
         self.NTK_VALID_THRESHOLD = 5000
         self.NTK_FAIL_SCORE = 5000
-        self.K_FAIL_SCORE = 5000
+        self.K_FAIL_SCORE = -5000
         
         self.DATA_ROOT = './data'
         self.LOG_DIR = './logs'
