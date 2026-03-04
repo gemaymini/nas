@@ -13,7 +13,8 @@ env/
 # IDEs
 .vscode/
 .idea/
-
+scripts/
+ntk_analysis/
 # Logs and Output
 logs/
 runs/
@@ -34,7 +35,8 @@ data/*
 Thumbs.db
 
 /test/*/
-*.txt
+
+
 /src/apply/experiment_results
 /src/apply/ntk_experiment_results
 .vs
