@@ -6,7 +6,7 @@ __pycache__/
 *.egg-info/
 *.jpg
 # Environments
-venv/
+.venv/
 env/
 .env
 *.tex
