@@ -1,0 +1,125 @@
+{
+  "individual_id": 3169,
+  "accuracy": 60.49,
+  "param_count": 3846142,
+  "genotype": {
+    "normal": [
+      [
+        "sep_conv_3x3",
+        1
+      ],
+      [
+        "sep_conv_3x3",
+        0
+      ],
+      [
+        "sep_conv_5x5",
+        2
+      ],
+      [
+        "sep_conv_3x3",
+        0
+      ],
+      [
+        "max_pool_3x3",
+        2
+      ],
+      [
+        "sep_conv_3x3",
+        1
+      ],
+      [
+        "sep_conv_3x3",
+        0
+      ],
+      [
+        "sep_conv_3x3",
+        1
+      ]
+    ],
+    "normal_concat": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "reduce": [
+      [
+        "skip_connect",
+        0
+      ],
+      [
+        "skip_connect",
+        1
+      ],
+      [
+        "max_pool_3x3",
+        0
+      ],
+      [
+        "sep_conv_5x5",
+        0
+      ],
+      [
+        "max_pool_3x3",
+        2
+      ],
+      [
+        "sep_conv_3x3",
+        0
+      ],
+      [
+        "dil_conv_5x5",
+        1
+      ],
+      [
+        "dil_conv_3x3",
+        1
+      ]
+    ],
+    "reduce_concat": [
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "normal_cell_readable": "CellEncoding(num_nodes=4, edges_per_node=2):\n Node_0:Input_1->sep_conv_3x3, Input_0->sep_conv_3x3\n Node_1:Node_0->sep_conv_5x5, Input_0->sep_conv_3x3\n Node_2:Node_0->max_pool_3x3, Input_1->sep_conv_3x3\n Node_3:Input_0->sep_conv_3x3, Input_1->sep_conv_3x3",
+  "reduction_cell_readable": "CellEncoding(num_nodes=4, edges_per_node=2):\n Node_0:Input_0->skip_connect, Input_1->skip_connect\n Node_1:Input_0->max_pool_3x3, Input_0->sep_conv_5x5\n Node_2:Node_0->max_pool_3x3, Input_0->sep_conv_3x3\n Node_3:Input_1->dil_conv_5x5, Input_1->dil_conv_3x3",
+  "normal_cell": [
+    1,
+    2,
+    0,
+    2,
+    2,
+    3,
+    0,
+    2,
+    2,
+    6,
+    1,
+    2,
+    0,
+    2,
+    1,
+    2
+  ],
+  "reduction_cell": [
+    0,
+    1,
+    1,
+    1,
+    0,
+    6,
+    0,
+    3,
+    2,
+    6,
+    0,
+    2,
+    1,
+    5,
+    1,
+    4
+  ]
+}
