@@ -330,11 +330,11 @@ def clear_gpu_memory():
 
 def main():
     # ---- 配置 ----
-    SAMPLE_SIZE = 50
+    SAMPLE_SIZE = 500
     SEED = 42
     DATA_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
     RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
-    BATCH_SIZE = 64
+    BATCH_SIZE = 128
     NUM_BATCH = 1  # NTK/K 计算用的 batch 数
     DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 

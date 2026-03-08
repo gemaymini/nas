@@ -26,7 +26,7 @@ class Config:
             self.HISTORY_TOP_N2 = 3
             self.FULL_TRAIN_EPOCHS = 600
             
-            self.TRAIN_BATCH_SIZE = 256
+            self.TRAIN_BATCH_SIZE = 128
             self.EVAL_BATCH_SIZE = 128
         
         self.TOURNAMENT_SIZE = 5
@@ -54,7 +54,7 @@ class Config:
         self.NUM_STAGES = 3
         
         self.OPERATIONS = [
-            "zero",
+            # "zero",
             "skip_connect",
             "sep_conv_3x3",
             "sep_conv_5x5",
