@@ -41,7 +41,7 @@ class Config:
         self.EARLY_STOP_MIN_DELTA = 0.01
         self.AUXILIARY_WEIGHT = 0.4
         self.DROP_PATH_MAX = 0.3
-        self.FINAL_DATASET = "cifar10"
+        self.FINAL_DATASET = "cifar100"
         if self.FINAL_DATASET == 'cifar10':
             self.NUM_CLASSES = 10
         elif self.FINAL_DATASET == 'cifar100':

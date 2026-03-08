@@ -41,3 +41,5 @@ Thumbs.db
 /src/apply/ntk_experiment_results
 .vs
 /LoNAS
+/nas-bench-201/NATS-tss-v1_0-3ffb9-simple
+/nas-bench-201/results
