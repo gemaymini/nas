@@ -77,6 +77,27 @@ class AuxiliaryHeadCIFAR(nn.Module):
         x = self.classifier(x)
         return x
 
+class AuxiliaryHeadImageNet(nn.Module):
+    def __init__(self, C: int):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.AvgPool2d(5, stride=2, padding=0, count_include_pad=False),
+            nn.Conv2d(C, 128, 1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 768, 2, bias=False),
+            nn.BatchNorm2d(768),
+            nn.ReLU(inplace=True)
+        )
+        self.classifier = nn.Linear(768, config.NUM_CLASSES)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.features(x)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
+        return x
+
 class Network(nn.Module):
     def __init__(self, normal_cell: CellEncoding, reduction_cell: CellEncoding, auxiliary: bool = False):
         super().__init__()
@@ -87,16 +108,41 @@ class Network(nn.Module):
         self.num_stages = config.NUM_STAGES
         
         C = self.init_channels
-        self.stem = nn.Sequential(
-            nn.Conv2d(3, C * 3, 3, padding= 1, bias= False),
-            nn.BatchNorm2d(C * 3)
-        )
+        self.is_imagenet = (config.FINAL_DATASET == 'imagenet')
+        
+        if self.is_imagenet:
+            # ImageNet stem: 3-layer downsampling 224 -> 112 -> 56 -> 28
+            self.stem0 = nn.Sequential(
+                nn.Conv2d(3, C // 2, kernel_size=3, stride=2, padding=1, bias=False),
+                nn.BatchNorm2d(C // 2),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(C // 2, C, kernel_size=3, stride=2, padding=1, bias=False),
+                nn.BatchNorm2d(C),
+            )
+            self.stem1 = nn.Sequential(
+                nn.ReLU(inplace=True),
+                nn.Conv2d(C, C, kernel_size=3, stride=2, padding=1, bias=False),
+                nn.BatchNorm2d(C),
+            )
+            C_prev_prev = C
+            C_prev = C
+        else:
+            # CIFAR stem: single 3x3 conv
+            self.stem = nn.Sequential(
+                nn.Conv2d(3, C * 3, 3, padding=1, bias=False),
+                nn.BatchNorm2d(C * 3)
+            )
+            C_prev_prev = C * 3
+            C_prev = C * 3
         
         self.cells = nn.ModuleList()
-        C_prev_prev = C * 3
-        C_prev = C * 3
         C_curr = C
-        reduction_prev = False
+        reduction_prev = True if self.is_imagenet else False
+        
+        # 计算总 cell 数，用于确定 auxiliary head 位置 (2/3 depth)
+        total_cells = self.num_stages * self.cells_per_stage + (self.num_stages - 1)
+        aux_cell_target = (2 * total_cells) // 3
+        self.aux_cell_idx = -1
         
         cell_idx = 0
         for stage_idx in range(self.num_stages):
@@ -110,10 +156,6 @@ class Network(nn.Module):
                 C_curr *= 2
                 reduction_prev = True
                 cell_idx += 1
-                
-                if self.auxiliary and stage_idx == self.num_stages - 1:
-                    self.aux_cell_idx = len(self.cells) - 1
-                    self.auxiliary_head = AuxiliaryHeadCIFAR(C_prev)
             
             for _ in range(self.cells_per_stage):
                 reduction = False
@@ -125,6 +167,14 @@ class Network(nn.Module):
                 reduction_prev = False
                 cell_idx += 1
                 
+                # Auxiliary head 放在约 2/3 深度的 normal cell 后面 (DARTS convention)
+                if self.auxiliary and cell_idx == aux_cell_target:
+                    self.aux_cell_idx = len(self.cells) - 1
+                    if self.is_imagenet:
+                        self.auxiliary_head = AuxiliaryHeadImageNet(C_prev)
+                    else:
+                        self.auxiliary_head = AuxiliaryHeadCIFAR(C_prev)
+                
         self.global_pool = nn.AdaptiveAvgPool2d(1)
         self.classifier = nn.Linear(C_prev, self.num_classes)
         
@@ -133,7 +183,11 @@ class Network(nn.Module):
         
     def forward(self, x: torch.Tensor):
         logits_aux = None
-        s0 = s1 = self.stem(x)
+        if self.is_imagenet:
+            s0 = self.stem0(x)
+            s1 = self.stem1(s0)
+        else:
+            s0 = s1 = self.stem(x)
         for i, cell in enumerate(self.cells):
             s0, s1 = s1, cell(s0, s1)
             if self.auxiliary and self.training:

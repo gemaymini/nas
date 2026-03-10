@@ -26,7 +26,13 @@ class NTKEvaluator:
         self.k_num_batch = config.K_NUM_BATCH
         self.k_eps = config.K_EPS
         self.device = 'cuda'
-        self.trainloader = datasetloader.get_ntk_trainloader()
+        self._trainloader = None
+    
+    @property
+    def trainloader(self):
+        if self._trainloader is None:
+            self._trainloader = datasetloader.get_ntk_trainloader()
+        return self._trainloader
     
     def recal_bn(self, network: nn.Module):
         for m in network.modules():
@@ -214,22 +220,40 @@ class NTKEvaluator:
 class FinalEvaluator:
     def __init__(self):
         self.trainer = NetworkTrainer()
-        self.trainloader, self.testloader = datasetloader.get_dataset()    
+        self._trainloader = None
+        self._testloader = None
     
-    def plot_training_history(self, history: list, individual_id: int, epochs: int, best_acc: float, param_count: int, save_dir: str):
+    @property
+    def trainloader(self):
+        if self._trainloader is None:
+            self._trainloader, self._testloader = datasetloader.get_dataset()
+        return self._trainloader
+    
+    @property
+    def testloader(self):
+        if self._testloader is None:
+            self._trainloader, self._testloader = datasetloader.get_dataset()
+        return self._testloader
+    
+    def plot_training_history(self, history: list, individual_id: int, epochs: int, best_top1: float, best_top5: float, param_count: int, save_dir: str):
         if not history:
             return
         
         epoch_list = [h['epoch'] for h in history]
         train_loss = [h['train_loss'] for h in history]
         test_loss = [h['test_loss'] for h in history]
-        train_acc = [h['train_acc'] for h in history]
-        test_acc = [h['test_acc'] for h in history]
+        train_top1_err = [h['train_top1_err'] for h in history]
+        test_top1_err = [h['test_top1_err'] for h in history]
+        train_top5_err = [h.get('train_top5_err', 0) for h in history]
+        test_top5_err = [h.get('test_top5_err', 0) for h in history]
         lr_list = [h['lr'] for h in history]
+        
+        best_top1_err = 100.0 - best_top1
+        best_top5_err = 100.0 - best_top5
         
         fig, axes = plt.subplots(2, 2, figsize=(14, 10))
         fig.suptitle(f'Training History - Model {individual_id}\n'
-                     f'Params: {param_count:,} | Best Test Acc: {best_acc:.2f}% | Epochs: {epochs}', 
+                     f'Params: {param_count:,} | Best Top1 Err: {best_top1_err:.2f}% | Best Top5 Err: {best_top5_err:.2f}% | Epochs: {epochs}', 
                      fontsize=14, fontweight='bold')
         
         # 1. Loss 曲线
@@ -242,25 +266,27 @@ class FinalEvaluator:
         ax1.legend(loc='upper right')
         ax1.grid(True, linestyle='--', alpha=0.5)
         
-        # 2. Accuracy 曲线
+        # 2. Top1/Top5 错误率曲线
         ax2 = axes[0, 1]
-        ax2.plot(epoch_list, train_acc, 'b-', label='Train Acc', linewidth=1.5)
-        ax2.plot(epoch_list, test_acc, 'r-', label='Test Acc', linewidth=1.5)
-        ax2.axhline(y=best_acc, color='g', linestyle='--', alpha=0.7, label=f'Best: {best_acc:.2f}%')
+        ax2.plot(epoch_list, test_top1_err, 'r-', label='Test Top1 Err', linewidth=1.5)
+        ax2.plot(epoch_list, test_top5_err, 'b-', label='Test Top5 Err', linewidth=1.5)
+        ax2.plot(epoch_list, train_top1_err, 'r--', alpha=0.5, label='Train Top1 Err', linewidth=1)
+        ax2.plot(epoch_list, train_top5_err, 'b--', alpha=0.5, label='Train Top5 Err', linewidth=1)
+        ax2.axhline(y=best_top1_err, color='g', linestyle='--', alpha=0.7, label=f'Best Top1 Err: {best_top1_err:.2f}%')
         ax2.set_xlabel('Epoch')
-        ax2.set_ylabel('Accuracy (%)')
-        ax2.set_title('Accuracy Curves')
-        ax2.legend(loc='lower right')
+        ax2.set_ylabel('Error Rate (%)')
+        ax2.set_title('Top1 / Top5 Error Rate')
+        ax2.legend(loc='upper right', fontsize=8)
         ax2.grid(True, linestyle='--', alpha=0.5)
         
-        # 3. Train/Test Acc 差距（过拟合指标）
+        # 3. Train/Test Top1 Err 差距（过拟合指标）
         ax3 = axes[1, 0]
-        gap = [train_acc[i] - test_acc[i] for i in range(len(train_acc))]
+        gap = [test_top1_err[i] - train_top1_err[i] for i in range(len(train_top1_err))]
         ax3.plot(epoch_list, gap, 'purple', linewidth=1.5)
         ax3.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
         ax3.fill_between(epoch_list, 0, gap, alpha=0.3, color='purple')
         ax3.set_xlabel('Epoch')
-        ax3.set_ylabel('Train Acc - Test Acc (%)')
+        ax3.set_ylabel('Test Top1 Err - Train Top1 Err (%)')
         ax3.set_title('Generalization Gap (Overfitting Indicator)')
         ax3.grid(True, linestyle='--', alpha=0.5)
         
@@ -284,7 +310,7 @@ class FinalEvaluator:
         logger.info(f"Training curve saved to {plot_path}")
         return plot_path
 
-    def evaluate_individual(self, individual: Individual, full_train: bool = True) -> Tuple[float, dict]:
+    def evaluate_individual(self, individual: Individual, full_train: bool = True) -> Tuple[float, float, dict]:
         if full_train:
             epochs = config.FULL_TRAIN_EPOCHS
         else:
@@ -296,17 +322,20 @@ class FinalEvaluator:
         print(individual)
 
         start_time = time.time()
-        best_acc, history = self.trainer.train_network(
+        best_top1, best_top5, history = self.trainer.train_network(
             network, self.trainloader, self.testloader, full_train
         )
         train_time = time.time() - start_time
+        
+        best_top1_err = 100.0 - best_top1
+        best_top5_err = 100.0 - best_top5
 
         if full_train:
             save_dir = os.path.join(config.CHECKPOINT_DIR, 'full_train_models')
         else:
             save_dir = os.path.join(config.CHECKPOINT_DIR, 'short_train_models')
         os.makedirs(save_dir, exist_ok=True)
-        save_path = os.path.join(save_dir, f'model_{individual.id}_acc{best_acc:.2f}.pth')
+        save_path = os.path.join(save_dir, f'model_{individual.id}_top1err{best_top1_err:.2f}.pth')
 
         genotype = individual.get_genotype()
         save_dict = {
@@ -314,12 +343,16 @@ class FinalEvaluator:
             'genotype': genotype,
             'normal_cell': individual.normal_cell.to_list(),
             'reduction_cell': individual.reduction_cell.to_list(),
-            'accuracy': best_acc,
+            'top1_accuracy': best_top1,
+            'top5_accuracy': best_top5,
+            'top1_error': best_top1_err,
+            'top5_error': best_top5_err,
             'param_count': param_count,
             'history': history
         }
         torch.save(save_dict, save_path)
         logger.info(f"Saved model to {save_path}")
+        logger.info(f"Model {individual.id} | Top1 Err: {best_top1_err:.2f}% | Top5 Err: {best_top5_err:.2f}%")
         logger.info(f"Model {individual.id} Genotype: {genotype}")
 
         # 短训时保存两种格式的编码到 JSON 文件
@@ -327,7 +360,10 @@ class FinalEvaluator:
             encoding_save_path = save_path.replace('.pth', '_encoding.json')
             encoding_data = {
                 'individual_id': individual.id,
-                'accuracy': best_acc,
+                'top1_accuracy': best_top1,
+                'top5_accuracy': best_top5,
+                'top1_error': best_top1_err,
+                'top5_error': best_top5_err,
                 'param_count': param_count,
                 'genotype': genotype,
                 'normal_cell_readable': individual.normal_cell.__repr__(),
@@ -348,7 +384,8 @@ class FinalEvaluator:
                 history=history,
                 individual_id=individual.id,
                 epochs=epochs,
-                best_acc=best_acc,
+                best_top1=best_top1,
+                best_top5=best_top5,
                 param_count=param_count,
                 save_dir=plot_dir
             )
@@ -359,14 +396,17 @@ class FinalEvaluator:
         result = {
             'individual_id': individual.id,
             'param_count': param_count,
-            'best_accuracy': best_acc,
+            'best_top1': best_top1,
+            'best_top5': best_top5,
+            'top1_error': best_top1_err,
+            'top5_error': best_top5_err,
             'train_time': train_time,
             'history': history,
             'genotype': genotype,
             'model_path': save_path,
             'plot_path': plot_path
         }
-        return best_acc, result
+        return best_top1, best_top5, result
 
         
 ntk_evaluator = NTKEvaluator()

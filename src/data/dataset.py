@@ -47,6 +47,7 @@ class DatasetLoader:
         else: 
             self.cifar100_download = True
 
+        self.imagenet_root = config.IMAGENET_DATA_ROOT
         self.train_batch_size = config.TRAIN_BATCH_SIZE
         self.num_workers = config.NUM_WORKERS
         self.dataset_name = config.FINAL_DATASET
@@ -122,6 +123,49 @@ class DatasetLoader:
         
         return trainloader, testloader
     
+    def get_imagenet(self):
+        transform_train = transforms.Compose(
+            [
+                transforms.RandomResizedCrop(224),
+                transforms.RandomHorizontalFlip(),
+                transforms.ColorJitter(
+                    brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1
+                ),
+                transforms.ToTensor(),
+                transforms.Normalize((0.485, 0.456, 0.406),
+                                     (0.229, 0.224, 0.225)),
+            ]
+        )
+        transform_test = transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize((0.485, 0.456, 0.406),
+                                     (0.229, 0.224, 0.225)),
+            ]
+        )
+        
+        trainset = torchvision.datasets.ImageFolder(
+            root=os.path.join(self.imagenet_root, 'train'),
+            transform=transform_train
+        )
+        trainloader = DataLoader(
+            trainset, batch_size=self.train_batch_size, shuffle=True,
+            num_workers=self.num_workers, pin_memory=True
+        )
+        
+        testset = torchvision.datasets.ImageFolder(
+            root=os.path.join(self.imagenet_root, 'val'),
+            transform=transform_test
+        )
+        testloader = DataLoader(
+            testset, batch_size=self.eval_batch_size, shuffle=False,
+            num_workers=self.num_workers, pin_memory=True
+        )
+        
+        return trainloader, testloader
+    
     def get_ntk_trainloader(self):
         if self.dataset_name == 'cifar10':
             transform = transforms.Compose([
@@ -132,7 +176,7 @@ class DatasetLoader:
             dataset = torchvision.datasets.CIFAR10(
                 root= self.root, train= True, download= self.cifar10_download, transform= transform
             )
-        else:
+        elif self.dataset_name == 'cifar100':
             transform = transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Normalize((0.5071, 0.4867, 0.4408),
@@ -140,6 +184,18 @@ class DatasetLoader:
             ])
             dataset = torchvision.datasets.CIFAR100(
                 root= self.root, train= True, download= self.cifar100_download, transform= transform
+            )
+        elif self.dataset_name == 'imagenet':
+            transform = transforms.Compose([
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize((0.485, 0.456, 0.406),
+                                     (0.229, 0.224, 0.225))
+            ])
+            dataset = torchvision.datasets.ImageFolder(
+                root=os.path.join(self.imagenet_root, 'train'),
+                transform=transform
             )
             
         loader = DataLoader(
@@ -151,7 +207,9 @@ class DatasetLoader:
     def get_dataset(self):
         if self.dataset_name == 'cifar10':
             return self.get_cifar10()
-        else :
-            return self.get_cifar100() 
+        elif self.dataset_name == 'cifar100':
+            return self.get_cifar100()
+        elif self.dataset_name == 'imagenet':
+            return self.get_imagenet()
         
 datasetloader = DatasetLoader()

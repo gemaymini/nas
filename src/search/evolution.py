@@ -277,16 +277,21 @@ class NSGA2NAS:
         short_results = []
         for i, ind in enumerate(top_n1):
             logger.info(f"Short Train [{i+1}/{len(top_n1)}] ID: {ind.id}")
-            acc, _ = final_evaluator.evaluate_individual(ind, full_train=False)
-            ind.accuracy = acc
+            top1, top5, _ = final_evaluator.evaluate_individual(ind, full_train=False)
+            ind.accuracy = top1
+            ind.top5_accuracy = top5
             short_results.append(ind)
+            logger.info(f"  => Individual {ind.id} | Top1: {top1:.2f}% | Top5: {top5:.2f}%")
         
         self.short_train_time = time.time() - short_train_start
         logger.info(f"Short Training completed. Time: {self._format_time(self.short_train_time)}")
         
+        # 按 Top1 准确率排序选择最优个体
         short_results.sort(key=lambda x: x.accuracy if x.accuracy else float('-inf'), reverse=True)
         top_n2 = short_results[:config.HISTORY_TOP_N2]
-        logger.info(f"\nSelected Top {len(top_n2)} candidates based on Short Training Accuracy.")
+        logger.info(f"\nSelected Top {len(top_n2)} candidates based on Short Training Top1 Accuracy:")
+        for i, ind in enumerate(top_n2):
+            logger.info(f"  Rank {i+1}: ID={ind.id} | Top1: {ind.accuracy:.2f}% | Top5: {getattr(ind, 'top5_accuracy', 0):.2f}%")
         
         logger.info(f"\nStarting Full Training ({config.FULL_TRAIN_EPOCHS} epochs) for Top {len(top_n2)}...")
         full_train_start = time.time()
@@ -294,15 +299,22 @@ class NSGA2NAS:
         final_results = []
         best_final_ind = None
         best_final_acc = 0.0
+        best_final_top5 = 0.0
         
         for i, ind in enumerate(top_n2):
             logger.info(f"Full Train [{i+1}/{len(top_n2)}] ID: {ind.id}")
-            acc, result = final_evaluator.evaluate_individual(ind)
+            top1, top5, result = final_evaluator.evaluate_individual(ind)
             
-            logger.info(f"Individual {ind.id} Final Accuracy: {acc:.2f}%")
+            logger.info(
+                f"Individual {ind.id} | "
+                f"Top1 Acc: {top1:.2f}% (Err: {100.0 - top1:.2f}%) | "
+                f"Top5 Acc: {top5:.2f}% (Err: {100.0 - top5:.2f}%)"
+            )
             
-            if acc > best_final_acc:
-                best_final_acc = acc
+            # 使用 Top1 准确率比较模型
+            if top1 > best_final_acc:
+                best_final_acc = top1
+                best_final_top5 = top5
                 best_final_ind = ind
                 
             final_results.append(result)
@@ -312,7 +324,11 @@ class NSGA2NAS:
         
         self._save_time_stats()
             
-        logger.info(f"\nBest Final Model: ID={best_final_ind.id}, Acc={best_final_acc:.2f}%")
+        logger.info(
+            f"\nBest Final Model: ID={best_final_ind.id} | "
+            f"Top1 Acc: {best_final_acc:.2f}% (Err: {100.0 - best_final_acc:.2f}%) | "
+            f"Top5 Acc: {best_final_top5:.2f}% (Err: {100.0 - best_final_top5:.2f}%)"
+        )
         return best_final_ind
     
     def _save_checkpoint(self):

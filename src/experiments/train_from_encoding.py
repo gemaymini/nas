@@ -71,13 +71,14 @@ def main():
                 f"Cells per Stage: {config.CELLS_PER_STAGE}")
     
     evaluator = FinalEvaluator()
-    best_acc, result = evaluator.evaluate_individual(individual, full_train=True)
+    best_top1, best_top5, result = evaluator.evaluate_individual(individual, full_train=True)
     
     # 输出结果
     print("\n" + "=" * 60)
     print("训练完成")
     print("=" * 60)
-    print(f"  Best Accuracy:  {best_acc:.2f}%")
+    print(f"  Best Top1 Acc:  {best_top1:.2f}%")
+    print(f"  Best Top5 Acc:  {best_top5:.2f}%")
     print(f"  Param Count:    {result['param_count']:,}")
     print(f"  Train Time:     {result['train_time']:.1f}s")
     print(f"  Genotype:       {result['genotype']}")
@@ -86,7 +87,7 @@ def main():
         print(f"  Plot saved to:  {result['plot_path']}")
     print("=" * 60)
     
-    logger.info(f"Full training complete. Best accuracy: {best_acc:.2f}%")
+    logger.info(f"Full training complete. Best Top1: {best_top1:.2f}% | Best Top5: {best_top5:.2f}%")
 
 
 if __name__ == '__main__':

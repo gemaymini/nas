@@ -74,9 +74,14 @@ class FactorizedReduce(nn.Module):
     def forward(self, x):
         x = self.relu(x)
         if x.size(2) <= 1 or x.size(3) <= 1:
-            out = torch.cat([self.conv_1(x),self.conv_1(x)], dim= 1)
+            out = torch.cat([self.conv_1(x), self.conv_1(x)], dim=1)
         else:
-            out =torch.cat([self.conv_1(x), self.conv_2(x[:, :, 1:, 1:])], dim= 1)
+            out1 = self.conv_1(x)
+            out2 = self.conv_2(x[:, :, 1:, 1:])
+            # 处理奇数分辨率: 当 H 或 W 为奇数时, stride=2 的输出尺寸可能不一致
+            if out1.size() != out2.size():
+                out2 = torch.nn.functional.pad(out2, [0, out1.size(3) - out2.size(3), 0, out1.size(2) - out2.size(2)])
+            out = torch.cat([out1, out2], dim=1)
         out = self.bn(out)
         
         return out
