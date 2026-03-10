@@ -54,7 +54,7 @@ class Config:
         self.NUM_STAGES = 3
         
         self.OPERATIONS = [
-            # "zero",
+            "zero",
             "skip_connect",
             "sep_conv_3x3",
             "sep_conv_5x5",
