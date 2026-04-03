@@ -104,48 +104,38 @@ class NSGA2Selector:
         
         return fronts
 
-    def crowding_distance_assignment(self, front: List[Individual]):
+    def joint_rank_assignment(self, front: List[Individual]):
         n = len(front)
         if n == 0:
             return
-        
-        for ind in front:
-            ind.crowding_distance = 0.0
-        
-        if n <= 2:
-            for ind in front:
-                ind.crowding_distance = float('inf')
+
+        if n == 1:
+            front[0].combined_rank_score = 0.0
             return
-        
-        num_objectives = len(front[0].objectives)
-        
-        for m in range(num_objectives):
-            front.sort(key=lambda ind: ind.objectives[m])
-            
-            obj_min = front[0].objectives[m]
-            obj_max = front[-1].objectives[m]
-            obj_range = obj_max - obj_min
-            
-            # 边界个体赋予无穷大距离
-            front[0].crowding_distance = float('inf')
-            front[-1].crowding_distance = float('inf')
-            
-            if obj_range == 0:
-                continue
-            
-            for i in range(1, n - 1):
-                front[i].crowding_distance += (
-                    (front[i + 1].objectives[m] - front[i - 1].objectives[m]) / obj_range
-                )
-    
+
+        # NTK: lower is better -> ascending rank
+        sorted_by_ntk = sorted(range(n), key=lambda i: front[i].ntk_score if front[i].ntk_score is not None else float('inf'))
+        ntk_rank = [0] * n
+        for rank, idx in enumerate(sorted_by_ntk):
+            ntk_rank[idx] = rank
+
+        # K: higher is better -> descending rank
+        sorted_by_k = sorted(range(n), key=lambda i: -(front[i].k_score if front[i].k_score is not None else float('-inf')))
+        k_rank = [0] * n
+        for rank, idx in enumerate(sorted_by_k):
+            k_rank[idx] = rank
+
+        for i in range(n):
+            front[i].combined_rank_score = float(ntk_rank[i] + k_rank[i])
+
     def crowded_comparison(self, ind1: Individual, ind2: Individual) -> Individual:
         if ind1.rank < ind2.rank:
             return ind1
         elif ind2.rank < ind1.rank:
             return ind2
-        elif ind1.crowding_distance > ind2.crowding_distance:
+        elif (ind1.combined_rank_score or float('inf')) < (ind2.combined_rank_score or float('inf')):
             return ind1
-        elif ind2.crowding_distance > ind1.crowding_distance:
+        elif (ind2.combined_rank_score or float('inf')) < (ind1.combined_rank_score or float('inf')):
             return ind2
         else:
             return random.choice([ind1, ind2])
@@ -157,7 +147,7 @@ class NSGA2Selector:
         if len(tournament) == 0:
             raise ValueError("Population is empty, cannot select parents")
 
-        tournament.sort(key=lambda ind: (ind.rank, -ind.crowding_distance))
+        tournament.sort(key=lambda ind: (ind.rank, ind.combined_rank_score if ind.combined_rank_score is not None else float('inf')))
 
         if len(tournament) == 1:
             return tournament[0], tournament[0]
@@ -165,21 +155,21 @@ class NSGA2Selector:
     
     def environmental_selection(self, combined: List[Individual], target_size: int) -> List[Individual]:
         fronts = self.fast_non_dominated_sort(combined)
-        
+
         new_population = []
         front_idx = 0
-        
+
         while front_idx < len(fronts) and len(new_population) + len(fronts[front_idx]) <= target_size:
-            self.crowding_distance_assignment(fronts[front_idx])
+            self.joint_rank_assignment(fronts[front_idx])
             new_population.extend(fronts[front_idx])
             front_idx += 1
 
         if len(new_population) < target_size and front_idx < len(fronts):
             remaining = target_size - len(new_population)
-            self.crowding_distance_assignment(fronts[front_idx])
-            fronts[front_idx].sort(key=lambda ind: ind.crowding_distance, reverse=True)
+            self.joint_rank_assignment(fronts[front_idx])
+            fronts[front_idx].sort(key=lambda ind: ind.combined_rank_score if ind.combined_rank_score is not None else float('inf'))
             new_population.extend(fronts[front_idx][:remaining])
-        
+
         return new_population
 
 

@@ -96,7 +96,6 @@ class Individual:
         self.ntk_score = None
         self.k_score = None
         self.rank = None
-        self.crowding_distance = 0.0
         self.combined_rank_score = None
         self.objectives = None
         self.domination_count = 0
@@ -111,7 +110,6 @@ class Individual:
         new_ind.ntk_score = self.ntk_score
         new_ind.k_score = self.k_score
         new_ind.rank = self.rank
-        new_ind.crowding_distance = self.crowding_distance
         new_ind.combined_rank_score = self.combined_rank_score
         if self.objectives is not None:
             new_ind.objectives = list(self.objectives)
@@ -123,7 +121,6 @@ class Individual:
         self.ntk_score = None
         self.k_score = None
         self.rank = None
-        self.crowding_distance = 0.0
         self.combined_rank_score = None
         self.objectives = None
         self.domination_count = 0
@@ -155,7 +152,6 @@ class Individual:
             'ntk_score': self.ntk_score,
             'k_score': self.k_score,
             'rank': self.rank,
-            'crowding_distance': self.crowding_distance,
             'combined_rank_score': self.combined_rank_score,
             'objectives': self.objectives,
         }
@@ -172,7 +168,6 @@ class Individual:
         ind.ntk_score = data.get('ntk_score')
         ind.k_score = data.get('k_score')
         ind.rank = data.get('rank')
-        ind.crowding_distance = data.get('crowding_distance', 0.0)
         ind.combined_rank_score = data.get('combined_rank_score')
         ind.objectives = data.get('objectives')
         return ind
@@ -192,7 +187,7 @@ class Individual:
         print(f"NTK Score: {self.ntk_score}")
         print(f"K Score: {self.k_score}")
         print(f"Objectives: {self.objectives}")
-        print(f"Crowding Distance: {self.crowding_distance:.4f}")
+        print(f"Combined Rank Score: {self.combined_rank_score}")
         print(f"Param Count: {self.param_count}")
         print(f"Accuracy: {self.accuracy}")
         print(f"\n--- Normal Cell ---")

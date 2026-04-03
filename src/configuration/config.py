@@ -12,7 +12,7 @@ class Config:
             self.HISTORY_TOP_N1 = 5
             self.SHORT_TRAIN_EPOCHS = 1
             self.HISTORY_TOP_N2 = 1
-            self.FULL_TRAIN_EPOCHS = 1
+            self.FULL_TRAIN_EPOCHS = 5
             
             self.TRAIN_BATCH_SIZE = 64
             self.EVAL_BATCH_SIZE = 64

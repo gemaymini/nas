@@ -31,8 +31,7 @@ class NSGA2NAS:
         self.full_train_time = 0.0
         self.time_stats: dict = {}
         self.current_gen = 0
-    
-        self.archive: dict[tuple,Individual] = {}  
+
         self._seen_keys: set = set()
         
         self._log_search_space_info()
@@ -58,19 +57,6 @@ class NSGA2NAS:
         genotype = ind.get_genotype()
         return (tuple(genotype['normal']), tuple(genotype['reduce']))
     
-    def _update_archive(self, individuals: List[Individual]):
-        for ind in individuals:
-            if ind.ntk_score is None or ind.k_score is None:
-                continue
-            key = self._get_genotype_key(ind)
-            self._seen_keys.add(key)
-            if key not in self.archive:
-                self.archive[key] = ind.copy()
-            else:
-                existing = self.archive[key]
-                if ind.dominates(existing):
-                    self.archive[key] = ind.copy()
-    
     def initialize_population(self):
         logger.info(f"Initializing population of {self.population_size} individuals...")
         
@@ -90,16 +76,15 @@ class NSGA2NAS:
             logger.info(f"  Init sampling: skipped {n_dup_skipped} duplicates")
         
         ntk_evaluator.evaluate_population(self.population)
-        self._update_archive(self.population)
-        
+
         fronts = nsga2_selector.fast_non_dominated_sort(self.population)
         for front in fronts:
-            nsga2_selector.crowding_distance_assignment(front)
-        
+            nsga2_selector.joint_rank_assignment(front)
+
         self.history.extend(self.population)
-        
+
         self._record_generation_stats(0)
-        logger.info(f"Init done. Pareto front size: {len(fronts[0])}, Archive: {len(self.archive)}, Unique seen: {len(self._seen_keys)}")
+        logger.info(f"Init done. Pareto front size: {len(fronts[0])}, Unique seen: {len(self._seen_keys)}")
     
     def _generate_offspring_population(self) -> List[Individual]:
         offspring = []
@@ -129,6 +114,7 @@ class NSGA2NAS:
                 continue
             
             offspring_keys.add(key)
+            self._seen_keys.add(key)
             offspring.append(child)
         
         if n_batch_dup > 0 or n_global_dup > 0:
@@ -149,9 +135,7 @@ class NSGA2NAS:
         offspring = self._generate_offspring_population()
         
         ntk_evaluator.evaluate_population(offspring)
-        
-        self._update_archive(offspring)
-        
+
         combined = self.population + offspring
         
         self.population = nsga2_selector.environmental_selection(combined, self.population_size)
@@ -172,34 +156,32 @@ class NSGA2NAS:
     def _record_generation_stats(self, gen: int, gen_time: float = 0.0):
         fronts = nsga2_selector.fast_non_dominated_sort(self.population)
         for front in fronts:
-            nsga2_selector.crowding_distance_assignment(front)
-        
+            nsga2_selector.joint_rank_assignment(front)
+
         pareto_front = fronts[0]
-        
-        ntk_scores = [ind.ntk_score for ind in self.population 
+
+        ntk_scores = [ind.ntk_score for ind in self.population
                       if ind.ntk_score is not None and ind.ntk_score < config.NTK_FAIL_SCORE]
-        k_scores = [ind.k_score for ind in self.population 
+        k_scores = [ind.k_score for ind in self.population
                         if ind.k_score is not None and ind.k_score > config.K_FAIL_SCORE]
-        
+
         stats = {
             'generation': gen,
             'gen_time': gen_time,
             'population_size': len(self.population),
             'num_fronts': len(fronts),
             'pareto_front_size': len(pareto_front),
-            'archive_size': len(self.archive),
             'ntk_best': min(ntk_scores) if ntk_scores else config.NTK_FAIL_SCORE,
             'ntk_mean': sum(ntk_scores) / len(ntk_scores) if ntk_scores else config.NTK_FAIL_SCORE,
             'k_best': max(k_scores) if k_scores else config.K_FAIL_SCORE,
             'k_mean': sum(k_scores) / len(k_scores) if k_scores else config.K_FAIL_SCORE,
         }
         self.gen_stats.append(stats)
-        
+
         logger.info(
             f"Gen {gen}: "
             f"Fronts={len(fronts)} | "
             f"ParetoSize={len(pareto_front)} | "
-            f"Archive={len(self.archive)} | "
             f"NTK best={stats['ntk_best']:.4f} mean={stats['ntk_mean']:.4f} | "
             f"K best={stats['k_best']:.4f} mean={stats['k_mean']:.4f} | "
             f"Time={gen_time:.1f}s"
@@ -222,50 +204,31 @@ class NSGA2NAS:
         self._plot_pareto_front()
         self._plot_search_curves()
     
-    def _get_global_top_candidates(self, top_n: int) -> List[Individual]:
-        archive_list = list(self.archive.values())
-        if not archive_list:
-            return []
-            
-        valid = [ind for ind in archive_list
+    def _get_pareto_top_candidates(self, top_n: int) -> List[Individual]:
+        fronts = nsga2_selector.fast_non_dominated_sort(self.population)
+        pareto_front = fronts[0]
+
+        valid = [ind for ind in pareto_front
                  if ind.ntk_score is not None and ind.k_score is not None
                  and ind.ntk_score < config.NTK_FAIL_SCORE
                  and ind.k_score > config.K_FAIL_SCORE]
-                 
+
         if not valid:
-            logger.info("No valid candidates found in archive.")
+            logger.info("No valid candidates found in Pareto front.")
             return []
-            
-        n = len(valid)
-        
-        sorted_by_ntk = sorted(range(n), key=lambda i: valid[i].ntk_score)
-        ntk_rank = [0] * n
-        for rank, idx in enumerate(sorted_by_ntk):
-            ntk_rank[idx] = rank
-            
-        sorted_by_k = sorted(range(n), key=lambda i: -valid[i].k_score)
-        k_rank = [0] * n
-        for rank, idx in enumerate(sorted_by_k):
-            k_rank[idx] = rank
-            
-        combined = [(ntk_rank[i] + k_rank[i], i) for i in range(n)]
-        combined.sort(key=lambda x: x[0])
-        
-        result = []
-        for score, idx in combined[:top_n]:
-            ind = valid[idx]
-            ind.combined_rank_score = float(score)
-            result.append(ind)
-            
-        return result
+
+        nsga2_selector.joint_rank_assignment(valid)
+        valid.sort(key=lambda ind: ind.combined_rank_score)
+
+        return valid[:top_n]
     
     def run_screening_and_training(self):
         logger.info("\n" + "=" * 60)
         logger.info("Starting Screening and Training Phase (NSGA-II Pareto)")
         logger.info("=" * 60)
 
-        top_n1 = self._get_global_top_candidates(config.HISTORY_TOP_N1)
-        logger.info(f"Selected Top {len(top_n1)} candidates from Global Archive by combined NTK+K rank.")
+        top_n1 = self._get_pareto_top_candidates(config.HISTORY_TOP_N1)
+        logger.info(f"Selected Top {len(top_n1)} candidates from Pareto front by combined NTK+K rank.")
         
         for i, ind in enumerate(top_n1):
             logger.info(f"  Candidate {i+1}: ID={ind.id}, CombinedRank={ind.combined_rank_score:.0f}, "
@@ -321,12 +284,10 @@ class NSGA2NAS:
         
         population_data = [ind.to_dict() for ind in self.population]
         history_data = [ind.to_dict() for ind in self.history]
-        archive_data = {str(k): v.to_dict() for k, v in self.archive.items()}
-        
+
         checkpoint = {
             'population': population_data,
             'history': history_data,
-            'archive': archive_data,
             'seen_keys': list(self._seen_keys),
             'gen_stats': self.gen_stats,
             'current_gen': self.current_gen,
@@ -337,7 +298,7 @@ class NSGA2NAS:
 
         with open(filepath, 'wb') as f:
             pickle.dump(checkpoint, f)
-        logger.info(f"Checkpoint saved to {filepath} (archive: {len(self.archive)} unique archs)")
+        logger.info(f"Checkpoint saved to {filepath}")
         
     def load_checkpoint(self, filepath: str):
         with open(filepath, 'rb') as f:
@@ -349,13 +310,6 @@ class NSGA2NAS:
         if population_data:
             self.population = [Individual.from_dict(d) for d in population_data]
             self.history = [Individual.from_dict(d) for d in history_data]
-        
-        archive_data = checkpoint.get('archive', {})
-        for k_str, v_data in archive_data.items():
-            ind = Individual.from_dict(v_data)
-            key = self._get_genotype_key(ind)
-            self.archive[key] = ind
-            self._seen_keys.add(key)
         
         saved_keys = checkpoint.get('seen_keys', [])
         for k in saved_keys:
@@ -386,7 +340,7 @@ class NSGA2NAS:
             pop_data.append({
                 'id': ind.id,
                 'rank': ind.rank,
-                'crowding_distance': ind.crowding_distance,
+                'combined_rank_score': ind.combined_rank_score,
                 'ntk_score': ind.ntk_score,
                 'k_score': ind.k_score,
                 'objectives': ind.objectives,
@@ -396,17 +350,12 @@ class NSGA2NAS:
                     'reduce': genotype.get('reduce', [])
                 }
             })
-        
+
         pop_path = os.path.join(config.LOG_DIR, 'nsga2_population.json')
         with open(pop_path, 'w', encoding='utf-8') as f:
             json.dump(pop_data, f, indent=2, ensure_ascii=False, default=str)
-        
-        archive_data = [ind.to_dict() for ind in self.archive.values()]
-        archive_path = os.path.join(config.LOG_DIR, 'nsga2_archive.json')
-        with open(archive_path, 'w', encoding='utf-8') as f:
-            json.dump(archive_data, f, indent=2, ensure_ascii=False, default=str)
-        
-        logger.info(f"Search history saved to {config.LOG_DIR} (archive: {len(self.archive)} unique archs)")
+
+        logger.info(f"Search history saved to {config.LOG_DIR}")
     
     def _plot_pareto_front(self):
         os.makedirs(config.LOG_DIR, exist_ok=True)
